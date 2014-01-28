@@ -1,7 +1,8 @@
-heat_template_version: 2013-05-23
+heat_template_version: 2014-01-15
 
 description: |
-  HEAT template for installing qlikview on Windows Server
+  HEAT template for installing QlikView Personal edition on a single Windows
+  Server
 
 parameters:
 
@@ -13,31 +14,35 @@ parameters:
     - length:
         min: 1
         max: 64
-    - allowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
-      description: must begin with a letter and contain only alphanumeric characters.
-    
+    - allowedPattern: "^[a-zA-Z][a-zA-Z0-9-]*$"
+      description: |
+        must begin with a letter and contain only alphanumeric characters
+
   image:
     type: String
     default: Windows Server 2008 R2 SP1
-    description: Windows Server Image
     constraints:
     - allowed_values:
       - Windows Server 2008 R2 SP1
-      - Windows Server 2008 R2 SP1 + SQL Server 2008 R2 SP2 Web
-      description: must be a valid windows server OS.
-  
+      description: must be a supported OS
+    description: Windows Server Image
+
   flavor:
     type: String
     description: Rackspace Cloud Server flavor
-    default: 4GB Standard Instance
+    default: 4 GB Performance
     constraints:
     - allowed_values:
+      - 4 GB Performance
+      - 8 GB Performance
+      - 15 GB Performance
+      - 30 GB Performance
       - 4GB Standard Instance
       - 8GB Standard Instance
       - 15GB Standard Instance
       - 30GB Standard Instance
       description: must be a valid Rackspace Cloud Server flavor.
-  
+
 resources:
 
   rs_windows_server:
@@ -46,55 +51,65 @@ resources:
       name: { get_param: server_hostname }
       flavor: { get_param: flavor }
       image: { get_param: image }
-      user_data: |
-        $BaseURL = "http://304548e3a421cc29c822-f6518816eb9cdc30b28dfdf16d2d7417.r95.cf1.rackcdn.com/"
-        #$InstallFile = "QlikViewDesktop_x64Setup.exe"
-        $InstallFile = "QlikViewX64.msi"
-        $AutomationPath = "C:\windows"
-        $log = ".\quikview.log"
-        # Download Function
-        Function Download-File ($DowloadUrl, $DestinationFileName) {
-          $WebClientObject = New-Object System.Net.WebClient
-          try {
-            Write-Host $DestinationFileName
-            Write-Host $DowloadUrl
-            $WebClientObject.DownloadFile($DowloadUrl, $DestinationFileName)
-            "[$(Get-Date)] Status: Downloaded $DestinationFileName Successfully"
-          }
-          catch{
-            "[*] Installation ERROR"
-          }
-        }
-        # Install MSI Function
-        Function InstallMSI ($MSIFileName, $BuildLog){
-          write-host "[$(Get-Date)] Status: Installing $MSIFileName"
-          $BuildArgs = @{
-            FilePath = "msiexec"
-            ArgumentList = "/quiet /passive /i " +  $MSIFileName
-            RedirectStandardOutput = $BuildLog
-            Wait = $true
-          }
-          Try {
-            # Install the agent
-            Write-Host @BuildArgs
-            Start-Process @BuildArgs
-          }
-          Catch {
-            #"Error installing $MSIFileName : $_" | Add-Content $BuildLog
-            #$failure = $true
-            throw "Error: Failed to install $MSIFileName : $_"
-          }
-          Write-host "[$(Get-Date)] Status: Successfully Installed $MSIFileName"
-        }
-        # Main
-        Download-File $BaseURL$InstallFile $AutomationPath"\"$InstallFile
-        InstallMSI $InstallFile $log
+      user_data:
+        str_replace:
+          template: |
+            Net User Administrator %admin_pass%
+            $BaseURL = "%base_url%"
+            $InstallFile = "%install_file%"
+            $AutomationPath = "C:\Cloud-automation"
+            $log = "%temp%\aaa_myinstalllog.log\"
+            # Download Function
+            Function Download-File ($DowloadUrl, $DownloadPath, $FileName) {
+              $WebClientObject = New-Object System.Net.WebClient
+              try {
+                cd $DownloadPath
+                $WebClientObject.DownloadFile($DowloadUrl + $FileName, $DownloadPath + "\" + $FileName)
+                "[$(Get-Date)] Status: Downloaded Successfully $FileName in  $DownloadPath"
+              }
+              catch{
+                "[*] Installation ERROR"
+              }
+            }
+            # Install MSI Function
+            Function InstallMSI ($MSIFileName, $BuildLog){
+              write-host "[$(Get-Date)] Status: Installing $MSIFileName"
+              $BuildArgs = @{
+                FilePath = "msiexec"
+                ArgumentList = "/quiet /passive /i " +  $MSIFileName
+                RedirectStandardOutput = $BuildLog
+                Wait = $true
+              }
+              Try {
+                # Install the agent
+                Start-Process @BuildArgs
+              }
+              Catch {
+                #"Error installing $MSIFileName : $_" | Add-Content $BuildLog
+                #$failure = $true
+                throw "Error: Failed to install $MSIFileName : $_"
+              }
+              Write-host "[$(Get-Date)] Status: Successfully Installed $MSIFileName"
+            }
+            # Install QlikView
+            function Install-QlikView() {
+              QlikViewDesktop_x64Setup.exe /S /v"/l*v \"%temp%\aaa_myinstalllog.log\" /qn INSTALLDIR=\"%ProgramW6432%\Qlikview\" "
+            }
+            # Main
+            Download-File $BaseURL $AutomationPath $InstallFile
+            #Install-QlikView
+            InstallMSI $InstallFile $log
+          params:
+            "%base_url%": "http://304548e3a421cc29c822-f6518816eb9cdc30b28dfdf16d2d7417.r95.cf1.rackcdn.com/"
+            "%install_file%": "QlikViewX64.msi"
+            "%admin_pass%": "brintTest1"
 
 outputs:
 
   public_ip:
     value: { get_attr: [ rs_windows_server, accessIPv4 ] }
-    description: public IP of the windows server
-  
+    description: public IP of the Windows server
 
-
+  # admin_password: # NOT YET IMPLEMENTED
+  #  value: { get_attr: [ rs_windows_server, adminPass] }
+  #  description: administrator password for server
