@@ -107,7 +107,7 @@ resources:
 outputs:
 
   public_ip:
-    value: { get_attr: [ rs_windows_server, accessIPv4 ] }
+    value: { get_attr: [ rs_windows_server, PublicIp ] }
     description: public IP of the Windows server
 
   # admin_password: # NOT YET IMPLEMENTED
