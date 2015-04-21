@@ -6,7 +6,7 @@ parameters:
     description: flavor used by the servers
     default: 1 GB Performance
 resources:
-  server:
+  level3_server:
     type: Rackspace::Cloud::Server
     properties:
       flavor: {get_param: flavor}
