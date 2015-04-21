@@ -1,10 +1,6 @@
 heat_template_version: 2013-05-23
 description: A Rackspace server
 parameters:
-  image:
-    type: string
-    description: Image used for servers
-    default: Ubuntu 12.04 LTS (Precise Pangolin)
   flavor:
     type: string
     description: flavor used by the servers
